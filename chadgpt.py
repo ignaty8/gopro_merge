@@ -25,6 +25,7 @@ if __name__ == '__main__':
         sys.exit(1)
     directory = sys.argv[1]
     grouped_files = group_files(directory)
-    for key, files in grouped_files.items():
+    for key in sorted(grouped_files.keys(), key=int):
+        files = grouped_files[key]
         has_audio_file = any(has_audio(os.path.join(directory, file)) for file in files)
         print(f'Group {key}: {"has" if has_audio_file else "does not have"} an audio file')
