@@ -19,6 +19,28 @@ def group_files(directory):
             grouped_files[key].append(filename)
     return grouped_files
 
+def stitch_no_audio(args, prefix=""):
+    inputs = ""
+    for i in args:
+        inputs += "-i " + prefix + i + " "
+
+    cmd = "-hwaccel_output_format cuda " + inputs + "-filter_complex \""
+    for i in range(len(args)):
+        cmd += "[" + str(i) + ":v] "
+    cmd += "concat=n=" + str(len(args)) + ":v=1 [v]\" -map \"[v]\" -c:v h264_nvenc -b:v 50M -maxrate:v 100M -metadata:s:v:0 rotate=180 "
+    print("Final cmd: " + cmd)
+
+def stitch_with_audio(args, prefix=""):
+    inputs = ""
+    for i in args:
+        inputs += "-i " + prefix + i + " "
+
+    cmd = "-hwaccel_output_format cuda " + inputs + "-filter_complex \""
+    for i in range(len(args)):
+        cmd += "[" + str(i) + ":v] " + "[" + str(i) + ":a] "
+    cmd += "concat=n=" + str(len(args)) + ":v=1:a=1 [v] [a]\" -map \"[v]\" -map \"[a]\" -c:v h264_nvenc -b:v 50M -maxrate:v 100M "
+    print("Final cmd: " + cmd)
+
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         print('Usage: python script.py DIRECTORY')
@@ -26,6 +48,10 @@ if __name__ == '__main__':
     directory = sys.argv[1]
     grouped_files = group_files(directory)
     for key in sorted(grouped_files.keys(), key=int):
-        files = grouped_files[key]
+        files = sorted(grouped_files[key])
         has_audio_file = any(has_audio(os.path.join(directory, file)) for file in files)
+        if has_audio_file:
+            stitch_with_audio(files)
+        else:
+            stitch_no_audio(files)
         print(f'Group {key}: {"has" if has_audio_file else "does not have"} an audio file')
