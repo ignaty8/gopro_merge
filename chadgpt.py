@@ -19,27 +19,45 @@ def group_files(directory):
             grouped_files[key].append(filename)
     return grouped_files
 
-def stitch_no_audio(args, prefix=""):
+def stitch_no_audio(args, prefix="", directory=""):
     inputs = ""
-    for i in args:
-        inputs += "-i " + prefix + i + " "
+    if not prefix:
+        for i in args:
+            inputs += "-i " + os.path.join(directory, i) + " "
+    else:
+        for i in args:
+            inputs += "-i " + prefix + i + " "
 
-    cmd = "-hwaccel_output_format cuda " + inputs + "-filter_complex \""
+    cmd = "ffmpeg.exe -n -hwaccel_output_format cuda " + inputs + "-filter_complex \""
     for i in range(len(args)):
         cmd += "[" + str(i) + ":v] "
     cmd += "concat=n=" + str(len(args)) + ":v=1 [v]\" -map \"[v]\" -c:v h264_nvenc -b:v 50M -maxrate:v 100M -metadata:s:v:0 rotate=180 "
+    output_file = args[0][:2] + "XX" + args[0][4:]
+    cmd += os.path.join(directory, output_file)
     print("Final cmd: " + cmd)
+    return cmd
+    result = subprocess.run(list(cmd.split(" ")), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    print(result.stdout)
 
-def stitch_with_audio(args, prefix=""):
+def stitch_with_audio(args, prefix="", directory=""):
     inputs = ""
-    for i in args:
-        inputs += "-i " + prefix + i + " "
+    if not prefix:
+        for i in args:
+            inputs += "-i " + os.path.join(directory, i) + " "
+    else:
+        for i in args:
+            inputs += "-i " + prefix + i + " "
 
-    cmd = "-hwaccel_output_format cuda " + inputs + "-filter_complex \""
+    cmd = "ffmpeg.exe -n -hwaccel_output_format cuda " + inputs + "-filter_complex \""
     for i in range(len(args)):
         cmd += "[" + str(i) + ":v] " + "[" + str(i) + ":a] "
     cmd += "concat=n=" + str(len(args)) + ":v=1:a=1 [v] [a]\" -map \"[v]\" -map \"[a]\" -c:v h264_nvenc -b:v 50M -maxrate:v 100M "
+    output_file = args[0][:2] + "XX" + args[0][4:]
+    cmd += os.path.join(directory, output_file)
     print("Final cmd: " + cmd)
+    return cmd
+    result = subprocess.run(list(cmd.split(" ")), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    print(result.stdout)
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
@@ -47,11 +65,14 @@ if __name__ == '__main__':
         sys.exit(1)
     directory = sys.argv[1]
     grouped_files = group_files(directory)
+    cmds = []
     for key in sorted(grouped_files.keys(), key=int):
         files = sorted(grouped_files[key])
         has_audio_file = any(has_audio(os.path.join(directory, file)) for file in files)
         if has_audio_file:
-            stitch_with_audio(files)
+            cmds.append(stitch_with_audio(files, directory=directory))
         else:
-            stitch_no_audio(files)
+            cmds.append(stitch_no_audio(files, directory=directory))
         print(f'Group {key}: {"has" if has_audio_file else "does not have"} an audio file')
+    with open("commands.txt", "w") as f:
+        f.write('\r\n'.join(cmds))
